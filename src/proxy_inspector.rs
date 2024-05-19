@@ -11,7 +11,7 @@ use alloy_primitives::{
     Address, U256, B256, FixedBytes,
 };
 
-use revm_interpreter::{CallOutcome, OpCode};
+use revm_interpreter::{CallOutcome, InterpreterResult, OpCode};
 use thiserror::Error;
 use tracing::debug;
 
@@ -208,13 +208,13 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
         }
 	match call.scheme {
 	    CallScheme::DelegateCall => {
-		context.db.delegatecalls.push(call.target_address);
-		if let Some(storage) = context.db.values_to_storage.get(&call.target_address) {
+		context.db.delegatecalls.push(call.bytecode_address);
+		if let Some(storage) = context.db.values_to_storage.get(&call.bytecode_address) {
                     self.delegatecall_storage.push(*storage);
 		} else {
-                    self.delegatecall_unknown.push(call.target_address);
+                    self.delegatecall_unknown.push(call.bytecode_address);
 		}
-		context.db.insert_delegatecall(call.target_address);
+		context.db.insert_delegatecall(call.bytecode_address);
             },
 	    CallScheme::Call | CallScheme::CallCode | CallScheme::StaticCall => {
 		if call.input.len() >= 4 {
@@ -225,6 +225,6 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
 
 	    }
 	};
-        None
+        Some(CallOutcome { result: InterpreterResult { result: InstructionResult::Return, output: Bytes::new(), gas: Gas::new(call.gas_limit) }, memory_offset: 0..0 })
     }
 }

@@ -6,7 +6,7 @@ use ethers_core::types::BlockNumber;
 use hex_literal::hex;
 use crate::proxy_inspector::{ProxyInspector, ProxyDetectDB, InspectorData};
 use once_cell::sync::{OnceCell, Lazy};
-use revm::{primitives::{BlockEnv, TransactTo, TxEnv}, Database, Evm, EvmBuilder};
+use revm::{inspector_handle_register, primitives::{BlockEnv, TransactTo, TxEnv}, Database, Evm, EvmBuilder};
 use alloy_primitives::{Address, Bytes, U256};
 use thiserror::Error;
 use tracing::{debug, instrument::WithSubscriber};
@@ -153,6 +153,7 @@ impl StorageCallTaint {
         let mut evm = EvmBuilder::default()
             .with_db(db)
             .with_external_context(inspector)
+            .append_handler_register(inspector_handle_register)
             .modify_tx_env(|tx: &mut TxEnv| {
                 tx.transact_to = TransactTo::Call(self.address);
                 tx.data = calldata;
