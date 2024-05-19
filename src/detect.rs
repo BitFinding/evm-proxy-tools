@@ -6,10 +6,10 @@ use ethers_core::types::BlockNumber;
 use hex_literal::hex;
 use crate::proxy_inspector::{ProxyInspector, ProxyDetectDB, InspectorData};
 use once_cell::sync::{OnceCell, Lazy};
-use revm::Database;
-use revm_primitives::{Env, AccountInfo, Address, B256, Bytes, Bytecode, U256, TransactTo};
+use revm::{primitives::{BlockEnv, TransactTo, TxEnv}, Database, Evm, EvmBuilder};
+use alloy_primitives::{Address, Bytes, U256};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, instrument::WithSubscriber};
 use twoway::find_bytes;
 
 use crate::{ProxyType, ProxyDispatch};
@@ -144,44 +144,26 @@ impl StorageCallTaint {
     pub fn trace_calldata(&self, calldata: Bytes) -> InspectorData {
 
 	// init revm
-	let mut evm = revm::new();
 	let mut db = ProxyDetectDB::new(self.address);
 	db.install_contract(self.address, &self.code);
 
-	evm.database(db);
+	let inspector = ProxyInspector::new();
 
-	// let mut env = Env::default();
+        println!("inspector!!!");
+        let mut evm = EvmBuilder::default()
+            .with_db(db)
+            .with_external_context(inspector)
+            .modify_tx_env(|tx: &mut TxEnv| {
+                tx.transact_to = TransactTo::Call(self.address);
+                tx.data = calldata;
+                tx.value = U256::ZERO;
+                // Block gas limit is 30M
+                tx.gas_limit = 30_000_000;
+            })
+            .build();
 
-	// env.cfg.limit_contract_code_size = Some(0x100000);
-	// env.cfg.disable_block_gas_limit = true;
-	// env.cfg.disable_base_fee = true;
-
-	// println!("caller: {}", self.caller);
-	// println!("address: {}", self.address);
-
-	// env.tx.caller = self.caller;
-	evm.env.tx.gas_limit = 10000000000;
-	// env.tx.gas_price = u256_to_ru256(tx.gas_price.unwrap_or_default());
-	// env.tx.gas_priority_fee = tx.max_priority_fee_per_gas.map(u256_to_ru256);
-	// env.tx.nonce = Some(tx.nonce.as_u64());
-
-	// env.tx.access_list = to_revm_access_list(tx.access_list.clone().unwrap_or_default().0);
-
-	evm.env.tx.value = U256::ZERO;
-	evm.env.tx.data = calldata;
-	evm.env.tx.transact_to = TransactTo::Call(self.address);
-
-	// // Fill in CfgEnv
-	// env.cfg.chain_id = chain_id;
-
-	// // add the spec_id for the current block
-	// let spec_id = Hardfork::from(BlockNumber::Latest);
-	// evm.env.cfg.spec_id = spec_id.into();
-
-	// info!("Found {} transactions.", block.transactions.len());
-	let mut inspector = ProxyInspector::new();
-
-	let res = evm.inspect(&mut inspector);
+        let _res = evm.transact();
+        println!("res: {:?}", _res);
 	// if let Ok(ok_res) = res {
 	//     println!("success");
 	// } else {
@@ -189,7 +171,7 @@ impl StorageCallTaint {
 	// }
 	// println!("res: {:?}", res);
 	// let db = evm.db.unwrap();
-	inspector.collect()
+        evm.context.external.collect()
     }
 
     fn identify_proxy_by_storage(storage: &U256) -> ProxyType {

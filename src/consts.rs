@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ethers_core::types::H256;
 use once_cell::sync::Lazy;
-use revm_primitives::U256;
+use alloy_primitives::U256;
 
 use crate::ProxyType;
 

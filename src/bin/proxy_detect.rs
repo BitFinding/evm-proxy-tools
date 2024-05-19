@@ -5,7 +5,7 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 use anyhow::Result;
 
-use proxy_tools::get_proxy_type;
+use evm_proxy_tools::get_proxy_type;
 use tracing_subscriber::{
     EnvFilter,
     FmtSubscriber

@@ -3,16 +3,15 @@ use num_traits::cast::ToPrimitive;
 
 use once_cell::sync::Lazy;
 use revm::{
-    interpreter::{InstructionResult, Interpreter, CallInputs, Gas, CreateInputs, opcode, CallScheme},
-    Database, EVMData, Inspector
+    interpreter::{opcode, CallInputs, CallScheme, CreateInputs, Gas, InstructionResult, Interpreter}, primitives::{AccountInfo, Bytecode}, Database, EvmContext, Inspector
 };
 
-use revm_primitives::{
+use alloy_primitives::{
     Bytes,
-    Address, U256, AccountInfo, B256, Bytecode, FixedBytes,
+    Address, U256, B256, FixedBytes,
 };
 
-use revm_interpreter::OpCode;
+use revm_interpreter::{CallOutcome, OpCode};
 use thiserror::Error;
 use tracing::debug;
 
@@ -175,8 +174,8 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
     fn step(
         &mut self,
         interpreter: &mut Interpreter,
-        data: &mut EVMData<'_, ProxyDetectDB>,
-    ) -> InstructionResult {
+        context: &mut EvmContext<ProxyDetectDB>,
+    ) {
         // debug!("addr: {}", interpreter.contract.address);
         // debug!("opcode: {}", interpreter.current_opcode());
         let opcode = OpCode::new(interpreter.current_opcode()).unwrap();
@@ -194,39 +193,38 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
             },
             _ => ()
         };
-        InstructionResult::Continue
     }
 
     #[inline(always)]
     fn call(
         &mut self,
-        data: &mut EVMData<'_, ProxyDetectDB>,
+        context: &mut EvmContext<ProxyDetectDB>,
         call: &mut CallInputs,
-    ) -> (InstructionResult, Gas, Bytes) {
-        // println!("call!!! {:?} {}", call.context.scheme, call.contract);
+    ) -> Option<CallOutcome> {
+        // println!("call!!! {:?} {}", call.scheme, call.target_address);
         // return (InstructionResult::Continue, Gas::new(call.gas_limit), Bytes::new());
-        if call.context.scheme == CallScheme::Call && call.contract == data.db.contract_address {
-            return (InstructionResult::Continue, Gas::new(call.gas_limit), Bytes::new());
+        if call.scheme == CallScheme::Call && call.target_address == context.db.contract_address {
+            return None;
         }
-	match call.context.scheme {
+	match call.scheme {
 	    CallScheme::DelegateCall => {
-		data.db.delegatecalls.push(call.contract);
-		if let Some(storage) = data.db.values_to_storage.get(&call.contract) {
+		context.db.delegatecalls.push(call.target_address);
+		if let Some(storage) = context.db.values_to_storage.get(&call.target_address) {
                     self.delegatecall_storage.push(*storage);
 		} else {
-                    self.delegatecall_unknown.push(call.contract);
+                    self.delegatecall_unknown.push(call.target_address);
 		}
-		data.db.insert_delegatecall(call.contract);
+		context.db.insert_delegatecall(call.target_address);
             },
 	    CallScheme::Call | CallScheme::CallCode | CallScheme::StaticCall => {
 		if call.input.len() >= 4 {
 		    let fun = slice_as_u32_be(&call.input);
-		    self.external_calls.push((call.contract, fun));
-		    debug!("external call detected {:x}: {:x}", call.contract, fun);
+		    self.external_calls.push((call.target_address, fun));
+		    debug!("external call detected {:x}: {:x}", call.target_address, fun);
 		}
 
 	    }
 	};
-        (InstructionResult::Return, Gas::new(call.gas_limit), Bytes::new())
+        None
     }
 }

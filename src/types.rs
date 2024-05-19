@@ -1,4 +1,4 @@
-use revm_primitives::{U256, Address};
+use alloy_primitives::{U256, Address};
 
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

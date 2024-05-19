@@ -1,5 +1,5 @@
-use proxy_tools::{get_proxy_type, ProxyType, ProxyDispatch};
-use revm_primitives::{Address, U256};
+use evm_proxy_tools::{get_proxy_type, ProxyType, ProxyDispatch};
+use alloy_primitives::{Address, U256};
 
 #[test]
 fn test_eip_1167() {

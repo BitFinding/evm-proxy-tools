@@ -6,7 +6,7 @@ use ethers_core::types::H160;
 // use ethers_core::types::H256;
 use ethers_providers::Middleware;
 use futures::future::join_all;
-use revm_primitives::{Address, U256};
+use alloy_primitives::{Address, U256};
 use thiserror::Error;
 use tracing::debug;
 
@@ -31,6 +31,16 @@ pub enum ProxyImplementation {
     Single(Address),
     Multiple(Vec<Address>),
     Facets(HashMap<Address, u32>)
+}
+
+impl ProxyImplementation {
+    pub fn to_vec(&self) -> Vec<Address> {
+        match self {
+            ProxyImplementation::Single(addr) => vec![addr.clone()],
+            ProxyImplementation::Multiple(addrs) => addrs.to_owned(),
+            ProxyImplementation::Facets(addrs) => addrs.iter().map(|(k, v)| k.clone()).collect(),
+        }
+    }
 }
 
 // #[derive(EthAbiType)]

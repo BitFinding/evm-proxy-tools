@@ -3,10 +3,10 @@ use std::{str::FromStr, sync::Arc};
 use clap::Parser;
 use ethers_core::{types::{NameOrAddress, BlockId}, macros::ethers_providers_crate};
 use ethers_providers::{JsonRpcClient, Http, Middleware, Provider};
-use proxy_tools::{ProxyType, ProxyDispatch};
+use evm_proxy_tools::{ProxyType, ProxyDispatch};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-use proxy_tools::utils::EARGlue;
+use evm_proxy_tools::utils::EARGlue;
 
 
 /// A `clap` `value_parser` that removes a `0x` prefix if it exists
@@ -67,7 +67,7 @@ async fn main() {
 	    std::process::exit(1);
 	}
 
-	let proxy_type = proxy_tools::get_proxy_type(&code);
+	let proxy_type = evm_proxy_tools::get_proxy_type(&code);
 
 	println!("proxy type: {:?}", proxy_type);
 	if let Some((proxy_type, proxy_dispatch)) = proxy_type {
@@ -76,8 +76,8 @@ async fn main() {
 		address = ext_address.convert();
 		continue;
 	    } else {
-		let raddress = proxy_tools::utils::h160_to_b160(&address.as_address().unwrap());
-		let proxy_impl = proxy_tools::get_proxy_implementation(rpc, &raddress, &proxy_dispatch).await.expect("somehow failed to");
+		let raddress = evm_proxy_tools::utils::h160_to_b160(&address.as_address().unwrap());
+		let proxy_impl = evm_proxy_tools::get_proxy_implementation(rpc, &raddress, &proxy_dispatch).await.expect("somehow failed to");
 		println!("proxy impl: {:?}", proxy_impl);
 	    }
 	} else {

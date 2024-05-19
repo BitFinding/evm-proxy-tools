@@ -1,7 +1,7 @@
 use ethers_core::types::{H160 as eH160, U256 as eU256, H256 as eH256, NameOrAddress as eNameOrAddress};
 use ethers_core::types::transaction::eip2930::AccessListItem;
 
-use revm_primitives::{Address as rAddress, U256 as rU256};
+use alloy_primitives::{Address as rAddress, U256 as rU256};
 
 /// Ethers/Alloy/REVM trait to convert for types from one to another
 pub trait EARGlue<To> {
@@ -74,8 +74,8 @@ pub fn h256_to_u256_be(storage: eH256) -> eU256 {
 
 /// Small helper function to convert ether's [eH256] into revm's [B256].
 #[inline(always)]
-pub fn h256_to_b256(h: eH256) -> revm_primitives::B256 {
-    revm_primitives::B256::from_slice(h.as_bytes())
+pub fn h256_to_b256(h: eH256) -> alloy_primitives::B256 {
+    alloy_primitives::B256::from_slice(h.as_bytes())
 }
 
 /// Small helper function to convert ether's [eU256] into revm's [eU256].
@@ -88,8 +88,8 @@ pub fn u256_to_ru256(u: eU256) -> rU256 {
 
 /// Small helper function to convert ethers's [H160] into revm's [B160].
 #[inline(always)]
-pub fn h160_to_b160(h: &eH160) -> revm_primitives::Address {
-    revm_primitives::Address::from_slice(h.as_bytes())
+pub fn h160_to_b160(h: &eH160) -> alloy_primitives::Address {
+    alloy_primitives::Address::from_slice(h.as_bytes())
 }
 
 #[inline(always)]
