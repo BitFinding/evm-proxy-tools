@@ -1,8 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_recursion::async_recursion;
-use ethers_contract::{abigen, EthAbiType};
-use ethers_core::types::H160;
+use ethers_contract::abigen;
 // use ethers_core::types::H256;
 use ethers_providers::Middleware;
 use futures::future::join_all;
@@ -10,7 +9,7 @@ use alloy_primitives::{Address, U256};
 use thiserror::Error;
 use tracing::debug;
 
-use crate::{types::{ProxyDispatch, ProxyType}, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_H256}, utils::{u256_to_h256_be, ru256_to_h256_be, raddress_to_h160, h256_to_u256_be, h256_to_raddress_unchecked, as_u32_le, h160_to_b160}};
+use crate::{types::ProxyDispatch, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_H256}, utils::{ru256_to_h256_be, raddress_to_h160, h256_to_raddress_unchecked, as_u32_le, h160_to_b160}};
 
 #[derive(Clone, Debug, Error)]
 pub enum ProxyReadError {

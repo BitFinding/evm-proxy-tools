@@ -1,15 +1,11 @@
-use std::collections::HashMap;
 
 use crate::consts::{EIP_1967_DEFAULT_STORAGE, DIAMOND_STANDARD_STORAGE_SLOT_LESSBYTES, FUN_TO_PROXY};
-use ethers_core::types::BlockNumber;
 // use hardfork::Hardfork;
-use hex_literal::hex;
 use crate::proxy_inspector::{ProxyInspector, ProxyDetectDB, InspectorData};
-use once_cell::sync::{OnceCell, Lazy};
-use revm::{inspector_handle_register, primitives::{BlockEnv, TransactTo, TxEnv}, Database, Evm, EvmBuilder};
+use once_cell::sync::Lazy;
+use revm::{inspector_handle_register, primitives::{TransactTo, TxEnv}, EvmBuilder};
 use alloy_primitives::{Address, Bytes, U256};
-use thiserror::Error;
-use tracing::{debug, instrument::WithSubscriber};
+use tracing::debug;
 use twoway::find_bytes;
 
 use crate::{ProxyType, ProxyDispatch};

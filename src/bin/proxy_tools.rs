@@ -1,9 +1,9 @@
 use std::{str::FromStr, sync::Arc};
 
 use clap::Parser;
-use ethers_core::{types::{NameOrAddress, BlockId}, macros::ethers_providers_crate};
-use ethers_providers::{JsonRpcClient, Http, Middleware, Provider};
-use evm_proxy_tools::{ProxyType, ProxyDispatch};
+use ethers_core::types::{NameOrAddress, BlockId};
+use ethers_providers::{Http, Middleware, Provider};
+use evm_proxy_tools::ProxyDispatch;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use evm_proxy_tools::utils::EARGlue;

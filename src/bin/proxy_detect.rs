@@ -13,11 +13,6 @@ use tracing_subscriber::{
 
 use tracing::level_filters::LevelFilter;
 
-use tracing::{
-    info,
-    error,
-    trace,
-};
 
 use ethers_providers::{
     Middleware,
@@ -27,16 +22,11 @@ use ethers_providers::{
 
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ethers_core::types::U64;
 
-use futures::stream::{
-    Stream,
-    StreamExt,
-    TryStreamExt
-};
-use futures::pin_mut;
+use futures::stream::Stream;
 use async_stream::try_stream;
 // use tracer::utils::u256_to_ru256;
 // use tracer::tracer::execute_block;

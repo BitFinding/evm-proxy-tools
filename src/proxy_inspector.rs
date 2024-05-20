@@ -1,9 +1,8 @@
-use std::{collections::{HashSet, HashMap}, rc::Rc, ops::{BitAnd, BitXor}};
-use num_traits::cast::ToPrimitive;
+use std::{collections::{HashSet, HashMap}, ops::{BitAnd, BitXor}};
 
 use once_cell::sync::Lazy;
 use revm::{
-    interpreter::{opcode, CallInputs, CallScheme, CreateInputs, Gas, InstructionResult, Interpreter}, primitives::{AccountInfo, Bytecode}, Database, EvmContext, Inspector
+    interpreter::{opcode, CallInputs, CallScheme, Gas, InstructionResult, Interpreter}, primitives::{AccountInfo, Bytecode}, Database, EvmContext, Inspector
 };
 
 use alloy_primitives::{
@@ -15,7 +14,7 @@ use revm_interpreter::{CallOutcome, InterpreterResult, OpCode};
 use thiserror::Error;
 use tracing::debug;
 
-use crate::utils::{as_u32_be, slice_as_u32_be};
+use crate::utils::slice_as_u32_be;
 
 type StorageCall = HashSet<Bytes>;
 
