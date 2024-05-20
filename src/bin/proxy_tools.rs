@@ -15,11 +15,11 @@ pub fn strip_0x_prefix(s: &str) -> Result<String, &'static str> {
 }
 
 /// CLI arguments for `proxy-tools`.
+#[derive(Debug, Clone, Parser)]
 #[command(author, version, about, long_about = None)]
 // #[command(
 //     help_template = "{author-with-newline} {about-section}Version: {version} \n {usage-heading} {usage} \n {all-args} {tab}"
 // )]
-#[derive(Debug, Clone, Parser)]
 pub struct Args {
     /// The contract address.
     #[clap(value_parser = NameOrAddress::from_str)]
@@ -70,8 +70,8 @@ async fn main() {
 	let proxy_type = evm_proxy_tools::get_proxy_type(&code);
 
 	println!("proxy type: {:?}", proxy_type);
-	if let Some((proxy_type, proxy_dispatch)) = proxy_type {
-	    if let ProxyDispatch::External(ext_address, call) = proxy_dispatch {
+	if let Some((_proxy_type, proxy_dispatch)) = proxy_type {
+	    if let ProxyDispatch::External(ext_address, _call) = proxy_dispatch {
 		println!("going into proxy child");
 		address = ext_address.convert();
 		continue;

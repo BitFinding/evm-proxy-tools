@@ -114,7 +114,6 @@ impl StorageSlotProxy {
 
 struct StorageCallTaint {
     code: Bytes,
-    caller: Address,
     address: Address
 }
 
@@ -124,11 +123,9 @@ static DEFAULT_CONTRACT_ADDRESS: Lazy<Address> = Lazy::new(|| hex_literal::hex!(
 
 impl StorageCallTaint {
 
-    pub fn new_with_info(code: &[u8], address: Address, caller: Address) -> Self {
+    pub fn new_with_info(code: &[u8], address: Address, _caller: Address) -> Self {
 	Self {
 	    code: Bytes::copy_from_slice(code),
-	    // calldata: calldata.into(),
-	    caller,
 	    address
 	}
     }
@@ -237,12 +234,12 @@ impl StorageCallTaint {
 	// Run with 3 different call data to check if we get different DelegateCall
 	let mut runs = Vec::new();
 
-	let CALLDATA_DETECTORS = vec![
+	let calldata_detectors = vec![
 	    vec![0xaa, 0xcc, 0xbb, 0xdd],
 	    vec![0xcc, 0xbb, 0xdd, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1],
 	    vec![0x01, 0x02, 0x04, 0x11]
 	];
-	for calldata in CALLDATA_DETECTORS {
+	for calldata in calldata_detectors {
 	    let ret = self.trace_calldata(calldata.into());
 	    runs.push(ret);
 	}
@@ -262,15 +259,6 @@ impl ProxyDetector for StorageSlotProxy {
     }
 }
 
-struct FunCallProxy {}
-
-impl FunCallProxy {
-    pub fn try_find(code: &[u8], call: u32) -> Option<(ProxyType, ProxyDispatch)> {
-        let tainter = StorageCallTaint::new(code);
-	tainter.get_proxy()
-    }
-}
-
 pub fn get_proxy_type(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)> {
     if let Some(proxy_type) = MinimalProxy::try_match(code) {
 	Some(proxy_type)
@@ -278,13 +266,6 @@ pub fn get_proxy_type(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)> {
 	Some(proxy_type)
     } else {
 	None
-    }
-}
-
-pub fn get_proxy_type_child(code: &[u8], parent_info: &ProxyDispatch) -> Option<(ProxyType, ProxyDispatch)> {
-    match parent_info {
-        ProxyDispatch::External(_, _) => todo!(),
-	_ => None
     }
 }
 

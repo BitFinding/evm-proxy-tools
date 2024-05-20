@@ -37,7 +37,7 @@ impl ProxyImplementation {
         match self {
             ProxyImplementation::Single(addr) => vec![addr.clone()],
             ProxyImplementation::Multiple(addrs) => addrs.to_owned(),
-            ProxyImplementation::Facets(addrs) => addrs.iter().map(|(k, v)| k.clone()).collect(),
+            ProxyImplementation::Facets(addrs) => addrs.iter().map(|(k, _v)| k.clone()).collect(),
         }
     }
 }
@@ -84,7 +84,7 @@ where M: Middleware + 'static
     Ok(ProxyImplementation::Facets(facets_hashmap))
 }
 
-pub async fn read_diamond_implementation<M>(rpc: &M, address: &Address, diamond_base: &U256) -> Result<ProxyImplementation, ProxyReadError>
+pub async fn read_diamond_implementation<M>(_rpc: &M, _address: &Address, _diamond_base: &U256) -> Result<ProxyImplementation, ProxyReadError>
     where M: Middleware
 {
     // Scan storage to find the first array (should have its size)

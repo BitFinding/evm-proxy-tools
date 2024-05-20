@@ -1,4 +1,4 @@
-use std::{collections::{HashSet, HashMap}, ops::{BitAnd, BitXor}};
+use std::{collections::HashMap, ops::{BitAnd, BitXor}};
 
 use once_cell::sync::Lazy;
 use revm::{
@@ -15,8 +15,6 @@ use thiserror::Error;
 use tracing::debug;
 
 use crate::utils::slice_as_u32_be;
-
-type StorageCall = HashSet<Bytes>;
 
 /// The collected results of [`InspectorStack`].
 #[derive(Clone, Debug, PartialEq)]
@@ -146,7 +144,7 @@ impl Database for ProxyDetectDB {
 	}
     }
 
-    fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode,Self::Error>  {
+    fn code_by_hash(&mut self, _code_hash: B256) -> Result<Bytecode,Self::Error>  {
         // println!("code_by_hash(): {}", code_hash);
 	todo!()
     }
@@ -160,7 +158,7 @@ impl Database for ProxyDetectDB {
 	Ok(magic_value)
     }
 
-    fn block_hash(&mut self, number: U256) -> Result<B256,Self::Error>  {
+    fn block_hash(&mut self, _number: U256) -> Result<B256,Self::Error>  {
 	// println!("block_hash(): {}", number);
         todo!()
     }
@@ -173,12 +171,11 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
     fn step(
         &mut self,
         interpreter: &mut Interpreter,
-        context: &mut EvmContext<ProxyDetectDB>,
+        _context: &mut EvmContext<ProxyDetectDB>,
     ) {
         // debug!("addr: {}", interpreter.contract.address);
         // debug!("opcode: {}", interpreter.current_opcode());
-        let opcode = OpCode::new(interpreter.current_opcode()).unwrap();
-        debug!("opcode: {}", opcode);
+        debug!("opcode: {}", OpCode::new(interpreter.current_opcode()).unwrap());
         for mem in interpreter.stack().data() {
             debug!("STACK: {:x}", mem);
         }
