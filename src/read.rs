@@ -87,6 +87,8 @@ where M: Middleware + 'static
 pub async fn read_diamond_implementation<M>(_rpc: &M, _address: &Address, _diamond_base: &U256) -> Result<ProxyImplementation, ProxyReadError>
     where M: Middleware
 {
+    // TODO: implement properly
+    return Ok(ProxyImplementation::Multiple(Vec::new()))
     // Scan storage to find the first array (should have its size)
 
 
@@ -94,7 +96,6 @@ pub async fn read_diamond_implementation<M>(_rpc: &M, _address: &Address, _diamo
 
 
     // For each struct read the arrays of function signatures
-    todo!()
 }
 
 #[async_recursion]
