@@ -142,7 +142,6 @@ impl StorageCallTaint {
 
 	let inspector = ProxyInspector::new();
 
-        println!("inspector!!!");
         let mut evm = EvmBuilder::default()
             .with_db(db)
             .with_external_context(inspector)
@@ -157,7 +156,6 @@ impl StorageCallTaint {
             .build();
 
         let _res = evm.transact();
-        println!("res: {:?}", _res);
 	// if let Ok(ok_res) = res {
 	//     println!("success");
 	// } else {
