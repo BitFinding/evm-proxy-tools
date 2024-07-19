@@ -29,7 +29,7 @@ pub struct Args {
     ///
     /// Can also be the tags earliest, finalized, safe, latest, or pending.
     #[clap(long, short)]
-    block: Option<BlockId>,
+    block: Option<u64>,
 
     /// The RPC endpoint.
     #[clap(short = 'r', long = "rpc-url", env = "ETH_RPC_URL")]
@@ -57,9 +57,9 @@ async fn main() {
 
     loop {
 	println!("Analysing address {:?}", address.as_address().unwrap());
-
+        let block = args.block.map(|b| b.into());
 	let rpc = rpc.clone();
-	let code = rpc.get_code(address.clone(), args.block).await.expect("failed to find address at block");
+	let code = rpc.get_code(address.clone(), block).await.expect("failed to find address at block");
 	// println!("code: {:?}", code);
 
 	if code.is_empty() {
@@ -77,7 +77,7 @@ async fn main() {
 		continue;
 	    } else {
 		let raddress = evm_proxy_tools::utils::h160_to_b160(&address.as_address().unwrap());
-		let proxy_impl = evm_proxy_tools::get_proxy_implementation(rpc, &raddress, &proxy_dispatch).await.expect("somehow failed to");
+		let proxy_impl = evm_proxy_tools::get_proxy_implementation(rpc, &raddress, &proxy_dispatch, args.block).await.expect("somehow failed to");
 		println!("proxy impl: {:?}", proxy_impl);
 	    }
 	} else {
