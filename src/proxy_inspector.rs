@@ -12,7 +12,7 @@ use alloy_primitives::{
 
 use revm_interpreter::{CallOutcome, InterpreterResult, OpCode};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::utils::slice_as_u32_be;
 
@@ -175,16 +175,16 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
     ) {
         // debug!("addr: {}", interpreter.contract.address);
         // debug!("opcode: {}", interpreter.current_opcode());
-        debug!("opcode: {}", OpCode::new(interpreter.current_opcode()).unwrap());
+        trace!("opcode: {}", OpCode::new(interpreter.current_opcode()).unwrap());
         for mem in interpreter.stack().data() {
-            debug!("STACK: {:x}", mem);
+            trace!("STACK: {:x}", mem);
         }
-        debug!("--");
+        trace!("--");
         match interpreter.current_opcode() {
             opcode::SLOAD => {
                 if let Ok(memory) = interpreter.stack.peek(0) {
 		    self.storage_access.push(memory);
-                    debug!("SLOAD detected {}", memory);
+                    trace!("SLOAD detected {}", memory);
                 }
             },
             _ => ()
