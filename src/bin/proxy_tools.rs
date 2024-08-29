@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use clap::Parser;
-use ethers_core::types::{NameOrAddress, BlockId};
+use ethers_core::types::NameOrAddress;
 use ethers_providers::{Http, Middleware, Provider};
 use evm_proxy_tools::ProxyDispatch;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};

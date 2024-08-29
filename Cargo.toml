@@ -30,11 +30,11 @@ thiserror = "1.0"
 twoway = "0.2"
 
 ## alloy
-alloy-primitives = "0.7.2"
+alloy-primitives = "0.8"
 
 ## revm
-revm = { version = "9"}
-revm-interpreter = { version = "5.0", features = ["serde"] }
+revm = { version = "14"}
+# revm-interpreter = { version = "5.0", features = ["serde"] }
 
 bytes = "1.4"
 ethers-providers = "2.0"

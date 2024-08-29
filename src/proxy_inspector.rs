@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::{BitAnd, BitXor}};
 
 use once_cell::sync::Lazy;
 use revm::{
-    interpreter::{opcode, CallInputs, CallScheme, Gas, InstructionResult, Interpreter}, primitives::{AccountInfo, Bytecode}, Database, EvmContext, Inspector
+    interpreter::{opcode, CallInputs, CallOutcome, CallScheme, Gas, InstructionResult, Interpreter, InterpreterResult, OpCode}, primitives::{AccountInfo, Bytecode}, Database, EvmContext, Inspector
 };
 
 use alloy_primitives::{
@@ -10,7 +10,6 @@ use alloy_primitives::{
     Address, U256, B256, FixedBytes,
 };
 
-use revm_interpreter::{CallOutcome, InterpreterResult, OpCode};
 use thiserror::Error;
 use tracing::{debug, trace};
 
@@ -158,7 +157,7 @@ impl Database for ProxyDetectDB {
 	Ok(magic_value)
     }
 
-    fn block_hash(&mut self, _number: U256) -> Result<B256,Self::Error>  {
+    fn block_hash(&mut self, _number: u64) -> Result<B256,Self::Error>  {
 	// println!("block_hash(): {}", number);
         todo!()
     }
@@ -220,6 +219,9 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
 		}
 
 	    }
+            CallScheme::ExtCall | CallScheme::ExtDelegateCall | CallScheme::ExtStaticCall => {
+                panic!("EIP-7069 not supported");
+            }
 	};
         Some(CallOutcome { result: InterpreterResult { result: InstructionResult::Return, output: Bytes::new(), gas: Gas::new(call.gas_limit) }, memory_offset: 0..0 })
     }
