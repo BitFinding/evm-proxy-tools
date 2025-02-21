@@ -10,8 +10,19 @@ use twoway::find_bytes;
 
 use crate::{ProxyType, ProxyDispatch};
 
+/// Trait for implementing proxy detection strategies
 pub trait ProxyDetector {
-    fn try_match(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)>;
+    /// Attempts to match bytecode against a specific proxy pattern
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - The contract bytecode to analyze
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Some((ProxyType, ProxyDispatch)))` if the pattern matches,
+    /// `Ok(None)` if it doesn't match, or an error if the analysis fails.
+    fn try_match(code: &[u8]) -> Result<Option<(ProxyType, ProxyDispatch)>>;
 }
 
 pub struct MinimalProxy {}
@@ -228,22 +239,23 @@ impl StorageCallTaint {
 	}
     }
 
-    fn get_proxy(&self) -> Option<(ProxyType, ProxyDispatch)> {
-	// Run with 3 different call data to check if we get different DelegateCall
-	let mut runs = Vec::new();
+    fn get_proxy(&self) -> Result<Option<(ProxyType, ProxyDispatch)>> {
+        // Run with 3 different call data to check if we get different DelegateCall
+        let mut runs = Vec::new();
 
-	let calldata_detectors = vec![
-	    vec![0xaa, 0xcc, 0xbb, 0xdd],
-	    vec![0xcc, 0xbb, 0xdd, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1],
-	    vec![0x01, 0x02, 0x04, 0x11]
-	];
-	for calldata in calldata_detectors {
-	    let ret = self.trace_calldata(calldata.into());
-	    runs.push(ret);
-	}
-	self.detect_proxy_from_data(&runs)
-
-	// ProxyType::Unknown
+        let calldata_detectors = vec![
+            vec![0xaa, 0xcc, 0xbb, 0xdd],
+            vec![0xcc, 0xbb, 0xdd, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1],
+            vec![0x01, 0x02, 0x04, 0x11]
+        ];
+        
+        for calldata in calldata_detectors {
+            let ret = self.trace_calldata(calldata.into())
+                .map_err(|e| ProxyError::DetectionFailed(format!("Execution trace failed: {}", e)))?;
+            runs.push(ret);
+        }
+        
+        Ok(self.detect_proxy_from_data(&runs))
     }
 }
 
@@ -257,13 +269,44 @@ impl ProxyDetector for StorageSlotProxy {
     }
 }
 
-pub fn get_proxy_type(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)> {
+/// Attempts to detect the proxy type from contract bytecode.
+///
+/// This function analyzes the provided bytecode to determine if it implements
+/// any known proxy patterns. It checks for:
+/// - EIP-1167 Minimal Proxy
+/// - EIP-1967 Storage Proxy
+/// - EIP-2535 Diamond Proxy
+/// - Custom proxy implementations
+///
+/// # Arguments
+///
+/// * `code` - The contract bytecode to analyze
+///
+/// # Returns
+///
+/// Returns `Ok(Some((ProxyType, ProxyDispatch)))` if a proxy pattern is detected,
+/// `Ok(None)` if no proxy pattern is found, or an error if the analysis fails.
+///
+/// # Example
+///
+/// ```no_run
+/// use evm_proxy_tools::{get_proxy_type, Result};
+///
+/// fn example(bytecode: Vec<u8>) -> Result<()> {
+///     if let Some((proxy_type, dispatch)) = get_proxy_type(&bytecode)? {
+///         println!("Found proxy: {:?}", proxy_type);
+///     }
+///     Ok(())
+/// }
+/// ```
+pub fn get_proxy_type(code: &[u8]) -> Result<Option<(ProxyType, ProxyDispatch)>> {
     if let Some(proxy_type) = MinimalProxy::try_match(code) {
-	Some(proxy_type)
-    } else if let Some(proxy_type) = StorageSlotProxy::try_match(code) {
-	Some(proxy_type)
+        Ok(Some(proxy_type))
+    } else if let Some(proxy_type) = StorageSlotProxy::try_match(code)
+        .map_err(|e| ProxyError::DetectionFailed(e.to_string()))? {
+        Ok(Some(proxy_type))
     } else {
-	None
+        Ok(None)
     }
 }
 

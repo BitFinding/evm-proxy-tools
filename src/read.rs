@@ -12,19 +12,7 @@ use tracing::debug;
 
 use crate::{types::ProxyDispatch, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_H256}, utils::{ru256_to_h256_be, raddress_to_h160, h256_to_raddress_unchecked, as_u32_le, h160_to_b160}};
 
-#[derive(Clone, Debug, Error)]
-pub enum ProxyReadError {
-    #[error("unknown proxy")]
-    UnknownProxy,
-    #[error("RPC error: `{0}`")]
-    RPCError(String),
-    #[error("the storage doesn't contain an address")]
-    StorageNotAddress,
-    #[error("proxy is implemented in a different address")]
-    ExternalProxy,
-    #[error("unknown data store error")]
-    Unknown,
-}
+// Remove this enum as we're using the centralized ProxyError now
 
 #[derive(Clone, Debug)]
 pub enum ProxyImplementation {
@@ -102,7 +90,43 @@ pub async fn read_diamond_implementation<M>(_rpc: &M, _address: &Address, _diamo
 }
 
 #[async_recursion]
-pub async fn get_proxy_implementation<M>(rpc: Arc<M>, address: &Address, proxy_dispatch: &ProxyDispatch, block_number: Option<u64>) -> Result<ProxyImplementation, ProxyReadError>
+/// Retrieves the implementation address(es) for a proxy contract
+///
+/// This function resolves the actual implementation contract(s) for a proxy based on its
+/// dispatch mechanism. It supports various proxy patterns including:
+/// - Static address proxies
+/// - Storage-based proxies (EIP-1967)
+/// - Diamond proxies (EIP-2535)
+///
+/// # Arguments
+///
+/// * `rpc` - The RPC client for interacting with the blockchain
+/// * `address` - The proxy contract's address
+/// * `proxy_dispatch` - The proxy's dispatch mechanism
+/// * `block_number` - Optional block number for historical queries
+///
+/// # Returns
+///
+/// Returns a `ProxyImplementation` containing the implementation address(es)
+///
+/// # Example
+///
+/// ```no_run
+/// use evm_proxy_tools::{get_proxy_implementation, ProxyDispatch, Result};
+/// use std::sync::Arc;
+///
+/// async fn example<M>(client: Arc<M>, address: Address, dispatch: ProxyDispatch) -> Result<()> {
+///     let implementation = get_proxy_implementation(client, &address, &dispatch, None).await?;
+///     println!("Implementation: {:?}", implementation);
+///     Ok(())
+/// }
+/// ```
+pub async fn get_proxy_implementation<M>(
+    rpc: Arc<M>,
+    address: &Address,
+    proxy_dispatch: &ProxyDispatch,
+    block_number: Option<u64>
+) -> Result<ProxyImplementation>
     where M: Middleware + 'static
 {
     match proxy_dispatch {
