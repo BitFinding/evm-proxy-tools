@@ -11,24 +11,30 @@ pub enum ProxyError {
     DetectionFailed(String),
 
     /// Failed to read implementation address
-    #[error("Failed to read implementation address for proxy at {address}")]
+    #[error("Failed to read implementation address for proxy at {address}: {message}")]
     ImplementationReadError {
         address: Address,
+        message: String,
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     /// Invalid storage slot access
-    #[error("Invalid storage slot access at {slot}")]
+    #[error("Invalid storage slot access at {slot}: {message}")]
     InvalidStorageAccess {
         slot: U256,
+        message: String,
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
     /// RPC communication error
-    #[error("RPC error: {0}")]
-    RpcError(String),
+    #[error("RPC error: {message}")]
+    RpcError {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 
     /// Invalid or malformed bytecode
     #[error("Invalid bytecode for address {address}: {reason}")]
@@ -37,9 +43,21 @@ pub enum ProxyError {
         reason: String,
     },
 
+    /// Execution trace error
+    #[error("Execution trace error: {message}")]
+    TraceError {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
     /// Generic proxy error with context
-    #[error("{0}")]
-    Other(String),
+    #[error("{message}")]
+    Other {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 }
 
 /// Result type for proxy operations
