@@ -3,13 +3,16 @@ name = "evm-proxy-tools"
 version = "0.1.0"
 authors = ["snf"]
 edition = "2021"
-description = "A toolkit for detecting and analyzing Ethereum proxy contracts"
+description = "A comprehensive toolkit for detecting and analyzing Ethereum proxy contracts"
 repository = "https://github.com/bitfinding/evm-proxy-tools"
 documentation = "https://docs.rs/evm-proxy-tools"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 keywords = ["ethereum", "evm", "smart-contracts", "proxy", "analysis"]
 categories = ["cryptography::cryptocurrencies", "development-tools"]
+rust-version = "1.70"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

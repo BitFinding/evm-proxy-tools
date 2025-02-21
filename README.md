@@ -3,12 +3,13 @@
 [![Crates.io](https://img.shields.io/crates/v/evm-proxy-tools.svg)](https://crates.io/crates/evm-proxy-tools)
 [![Documentation](https://docs.rs/evm-proxy-tools/badge.svg)](https://docs.rs/evm-proxy-tools)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![Rust](https://github.com/bitfinding/evm-proxy-tools/actions/workflows/rust.yml/badge.svg)](https://github.com/bitfinding/evm-proxy-tools/actions/workflows/rust.yml)
 
-A Rust library for detecting and analyzing Ethereum proxy contracts. This tool helps developers and security researchers understand the proxy patterns used in smart contracts, including support for:
+A comprehensive Rust library for detecting and analyzing Ethereum proxy contracts. This tool helps developers and security researchers understand proxy patterns in smart contracts, with support for:
 
-- EIP-1167 Minimal Proxy detection
-- EIP-1967 Storage-based proxy detection
-- EIP-2535 Diamond proxy pattern analysis
+- [EIP-1167](https://eips.ethereum.org/EIPS/eip-1167) Minimal Proxy detection
+- [EIP-1967](https://eips.ethereum.org/EIPS/eip-1967) Storage-based proxy detection  
+- [EIP-2535](https://eips.ethereum.org/EIPS/eip-2535) Diamond proxy pattern analysis
 - Custom proxy pattern detection
 
 ## Features
