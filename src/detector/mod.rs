@@ -1,13 +1,21 @@
 use crate::{ProxyType, ProxyDispatch, Result};
 use alloy_primitives::Bytes;
 
+use crate::detector::types::{DetectorConfig, ProxyDetectionResult};
+
 /// Core trait for implementing proxy detection strategies
-pub trait DetectionStrategy {
+pub trait DetectionStrategy: Send + Sync {
     /// Attempt to detect proxy pattern
-    fn detect(&self, code: &Bytes) -> Result<Option<(ProxyType, ProxyDispatch)>>;
+    fn detect(&self, code: &Bytes, config: &DetectorConfig) -> Result<Option<ProxyDetectionResult>>;
 
     /// Name of the detection strategy
     fn name(&self) -> &'static str;
+
+    /// Priority of this strategy (lower numbers run first)
+    fn priority(&self) -> u8;
+
+    /// Configure the strategy
+    fn configure(&mut self, config: &DetectorConfig) -> Result<()>;
 }
 
 #[cfg(test)]
