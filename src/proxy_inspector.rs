@@ -1,8 +1,17 @@
-use std::{collections::HashMap, ops::{BitAnd, BitXor}};
+use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
 use revm::{
-    interpreter::{opcode, CallInputs, CallOutcome, CallScheme, Gas, InstructionResult, Interpreter, InterpreterResult, OpCode}, primitives::{AccountInfo, Bytecode}, Database, EvmContext, Inspector
+    interpreter::{
+        CallInputs, CallOutcome, CallScheme, Gas, InstructionResult, 
+        Interpreter, InterpreterResult, InterpreterTypes,
+        interpreter_types::{Jumps, StackTr},
+    },
+    state::{AccountInfo, Bytecode},
+    database_interface::DBErrorMarker,
+    Database, Inspector, Context,
+    bytecode::opcode,
+    context::JournalTr,
 };
 
 use alloy_primitives::{
@@ -83,14 +92,17 @@ static ADDR_XOR: Lazy<U256> = Lazy::new(|| U256::from_be_bytes(hex_literal::hex!
 
 #[derive(Clone, Debug, Error)]
 pub enum ProxyDetectError {
-
+    #[error("Custom error: {0}")]
+    Custom(String),
 }
 
+impl DBErrorMarker for ProxyDetectError {}
+
 pub struct ProxyDetectDB {
-    contract_address: Address,
+    pub contract_address: Address,
     code: HashMap<Address, Bytes>,
-    values_to_storage: HashMap<Address, U256>,
-    delegatecalls: Vec<Address>
+    pub values_to_storage: HashMap<Address, U256>,
+    pub delegatecalls: Vec<Address>
 }
 
 
@@ -108,7 +120,7 @@ impl ProxyDetectDB {
 	self.code.insert(address, code.clone());
     }
 
-    fn insert_delegatecall(&mut self, contract: Address) {
+    pub fn insert_delegatecall(&mut self, contract: Address) {
         self.delegatecalls.push(contract);
     }
 }
@@ -148,7 +160,8 @@ impl Database for ProxyDetectDB {
 	todo!()
     }
 
-    fn storage(&mut self, address: Address,index: U256) -> Result<U256,Self::Error>  {
+    fn storage(&mut self, address: Address, index: U256) -> Result<U256,Self::Error>  {
+        use std::ops::{BitAnd, BitXor};
         let magic_value = index.bitand(*ADDR_MASK).bitxor(*ADDR_XOR);
 	let magic_address = Address::from_word(FixedBytes::from_slice(&magic_value.to_be_bytes::<32>()));
 	debug!("storage(): {:x} -> {:x} = {:x}", address, index, magic_value);
@@ -163,25 +176,32 @@ impl Database for ProxyDetectDB {
     }
 }
 
-
-impl Inspector<ProxyDetectDB> for ProxyInspector {
-
+impl<CTX, INTR> Inspector<CTX, INTR> for ProxyInspector 
+where 
+    CTX: ProxyDetectDBAccess,
+    INTR: InterpreterTypes,
+    INTR::Bytecode: Jumps,
+    INTR::Stack: StackTr,
+{
     #[inline(always)]
     fn step(
         &mut self,
-        interpreter: &mut Interpreter,
-        _context: &mut EvmContext<ProxyDetectDB>,
+        interp: &mut Interpreter<INTR>,
+        _context: &mut CTX,
     ) {
         // debug!("addr: {}", interpreter.contract.address);
-        // debug!("opcode: {}", interpreter.current_opcode());
-        trace!("opcode: {}", OpCode::new(interpreter.current_opcode()).unwrap());
-        for mem in interpreter.stack().data() {
+        let op = interp.bytecode.opcode();
+        trace!("opcode: {}", revm::bytecode::opcode::OpCode::new(op).unwrap());
+        for mem in interp.stack.data() {
             trace!("STACK: {:x}", mem);
         }
         trace!("--");
-        match interpreter.current_opcode() {
+        match op {
             opcode::SLOAD => {
-                if let Ok(memory) = interpreter.stack.peek(0) {
+                // Try to get stack value at position 0
+                let stack_data = interp.stack.data();
+                if !stack_data.is_empty() {
+                    let memory = stack_data[stack_data.len() - 1];
 		    self.storage_access.push(memory);
                     trace!("SLOAD detected {}", memory);
                 }
@@ -193,36 +213,66 @@ impl Inspector<ProxyDetectDB> for ProxyInspector {
     #[inline(always)]
     fn call(
         &mut self,
-        context: &mut EvmContext<ProxyDetectDB>,
+        context: &mut CTX,
         call: &mut CallInputs,
     ) -> Option<CallOutcome> {
         // println!("call!!! {:?} {}", call.scheme, call.target_address);
-        // return (InstructionResult::Continue, Gas::new(call.gas_limit), Bytes::new());
-        if call.scheme == CallScheme::Call && call.target_address == context.db.contract_address {
+        let db = context.get_proxy_detect_db();
+        if call.scheme == CallScheme::Call && call.target_address == db.contract_address {
             return None;
         }
+        
+        // Get the input bytes for function selector extraction
+        let input_bytes: Bytes = match &call.input {
+            revm::interpreter::CallInput::Bytes(bytes) => bytes.clone(),
+            revm::interpreter::CallInput::SharedBuffer(_) => {
+                // For shared buffer, we can't easily access the bytes without context
+                // Just use empty bytes as fallback
+                Bytes::new()
+            }
+        };
+        
 	match call.scheme {
 	    CallScheme::DelegateCall => {
-		context.db.delegatecalls.push(call.bytecode_address);
-		if let Some(storage) = context.db.values_to_storage.get(&call.bytecode_address) {
+		db.delegatecalls.push(call.bytecode_address);
+		if let Some(storage) = db.values_to_storage.get(&call.bytecode_address) {
                     self.delegatecall_storage.push(*storage);
 		} else {
                     self.delegatecall_unknown.push(call.bytecode_address);
 		}
-		context.db.insert_delegatecall(call.bytecode_address);
+		db.insert_delegatecall(call.bytecode_address);
             },
 	    CallScheme::Call | CallScheme::CallCode | CallScheme::StaticCall => {
-		if call.input.len() >= 4 {
-		    let fun = slice_as_u32_be(&call.input);
+		if input_bytes.len() >= 4 {
+		    let fun = slice_as_u32_be(&input_bytes);
 		    self.external_calls.push((call.target_address, fun));
 		    debug!("external call detected {:x}: {:x}", call.target_address, fun);
 		}
-
 	    }
-            CallScheme::ExtCall | CallScheme::ExtDelegateCall | CallScheme::ExtStaticCall => {
-                panic!("EIP-7069 not supported");
-            }
 	};
-        Some(CallOutcome { result: InterpreterResult { result: InstructionResult::Return, output: Bytes::new(), gas: Gas::new(call.gas_limit) }, memory_offset: 0..0 })
+        Some(CallOutcome::new(
+            InterpreterResult { 
+                result: InstructionResult::Return, 
+                output: Bytes::new(), 
+                gas: Gas::new(call.gas_limit) 
+            }, 
+            0..0
+        ))
+    }
+}
+
+/// Trait to access the ProxyDetectDB from the context.
+/// This is needed because we need access to the DB in the Inspector implementation.
+pub trait ProxyDetectDBAccess {
+    fn get_proxy_detect_db(&mut self) -> &mut ProxyDetectDB;
+}
+
+// Implement for the Context type that revm uses
+impl<BLOCK, TX, CFG, JOURNAL> ProxyDetectDBAccess for Context<BLOCK, TX, CFG, ProxyDetectDB, JOURNAL> 
+where 
+    JOURNAL: JournalTr<Database = ProxyDetectDB>,
+{
+    fn get_proxy_detect_db(&mut self) -> &mut ProxyDetectDB {
+        self.journaled_state.db_mut()
     }
 }

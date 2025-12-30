@@ -3,7 +3,7 @@ use crate::consts::{EIP_1967_DEFAULT_STORAGE, DIAMOND_STANDARD_STORAGE_SLOT_LESS
 // use hardfork::Hardfork;
 use crate::proxy_inspector::{ProxyInspector, ProxyDetectDB, InspectorData};
 use once_cell::sync::Lazy;
-use revm::{inspector_handle_register, primitives::{TransactTo, TxEnv}, EvmBuilder};
+use revm::{Context, context::TxEnv, primitives::TxKind, MainContext, MainBuilder, InspectEvm};
 use alloy_primitives::{Address, Bytes, U256};
 use tracing::debug;
 use twoway::find_bytes;
@@ -142,28 +142,23 @@ impl StorageCallTaint {
 
 	let inspector = ProxyInspector::new();
 
-        let mut evm = EvmBuilder::default()
-            .with_db(db)
-            .with_external_context(inspector)
-            .append_handler_register(inspector_handle_register)
-            .modify_tx_env(|tx: &mut TxEnv| {
-                tx.transact_to = TransactTo::Call(self.address);
-                tx.data = calldata;
-                tx.value = U256::ZERO;
-                // Block gas limit is 30M
-                tx.gas_limit = 30_000_000;
-            })
-            .build();
+        // Build EVM with the new revm 33 API
+        let tx = TxEnv::builder()
+            .kind(TxKind::Call(self.address))
+            .data(calldata)
+            .value(U256::ZERO)
+            .gas_limit(30_000_000)
+            .build()
+            .expect("Failed to build TxEnv");
 
-        let _res = evm.transact();
-	// if let Ok(ok_res) = res {
-	//     println!("success");
-	// } else {
-	//     println!("fail");
-	// }
-	// println!("res: {:?}", res);
-	// let db = evm.db.unwrap();
-        evm.context.external.collect()
+        let mut evm = Context::mainnet()
+            .with_db(db)
+            .build_mainnet_with_inspector(inspector);
+
+        let _res = evm.inspect_one_tx(tx);
+        
+        // Get the inspector from the EVM and collect results
+        evm.inspector.collect()
     }
 
     fn identify_proxy_by_storage(storage: &U256) -> ProxyType {
