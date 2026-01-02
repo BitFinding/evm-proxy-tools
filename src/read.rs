@@ -1,16 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use async_recursion::async_recursion;
-use ethers_contract::abigen;
-use ethers_core::types::{BlockId, BlockNumber};
-// use ethers_core::types::H256;
-use ethers_providers::Middleware;
+use alloy::providers::Provider;
+use alloy::rpc::types::BlockId;
+use alloy::sol;
+use alloy_primitives::{Address, B256, U256};
 use futures::future::join_all;
-use alloy_primitives::{Address, U256};
 use thiserror::Error;
 use tracing::debug;
 
-use crate::{types::ProxyDispatch, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_H256}, utils::{ru256_to_h256_be, raddress_to_h160, h256_to_raddress_unchecked, as_u32_le, h160_to_b160}};
+use crate::{types::ProxyDispatch, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_U256}, utils::as_u32_le};
 
 #[derive(Clone, Debug, Error)]
 pub enum ProxyReadError {
@@ -36,86 +34,125 @@ pub enum ProxyImplementation {
 impl ProxyImplementation {
     pub fn to_vec(&self) -> Vec<Address> {
         match self {
-            ProxyImplementation::Single(addr) => vec![addr.clone()],
+            ProxyImplementation::Single(addr) => vec![*addr],
             ProxyImplementation::Multiple(addrs) => addrs.to_owned(),
-            ProxyImplementation::Facets(addrs) => addrs.iter().map(|(k, _v)| k.clone()).collect(),
+            ProxyImplementation::Facets(addrs) => addrs.keys().copied().collect(),
         }
     }
 }
 
-// #[derive(EthAbiType)]
-// struct Facet {
-//     facetAddress: H160,
-//     functionSelectors: Vec<u32>
-// }
-
-abigen!(
-    IDiamondLoupe, r"[
-    struct Facet {address facetAddress; bytes4[] functionSelectors;}
-
-    function facets() external view returns (Facet[])
-]",
-);
-
-pub async fn read_single_storage_implementation<M>(rpc: &M, address: &Address, storage: &U256, block_number: Option<u64>) -> Result<Address, ProxyReadError>
-    where M: Middleware
-{
-    let h256_storage = ru256_to_h256_be(storage);
-    let block = block_number.map(|b| b.into());
-    let h256_value = rpc.get_storage_at(raddress_to_h160(address), h256_storage, block).await.map_err(|e| ProxyReadError::RPCError(e.to_string()))?;
-    // let value = h256_to_u256_be(h256_value);
-
-    debug!("stored value:: {:?}", h256_value);
-    if (h256_value & *ADDR_MASK_H256) == h256_value {
-	let stored_address = h256_to_raddress_unchecked(&h256_value);
-	Ok(stored_address)
-    } else {
-	Err(ProxyReadError::StorageNotAddress)
+sol! {
+    #[sol(rpc)]
+    interface IDiamondLoupe {
+        struct Facet { address facetAddress; bytes4[] functionSelectors; }
+        function facets() external view returns (Facet[]);
     }
 }
 
-pub async fn read_facet_list_from_function<M>(rpc: Arc<M>, address: &Address, block_number: Option<u64>) -> Result<ProxyImplementation, ProxyReadError>
-where M: Middleware + 'static
+pub async fn read_single_storage_implementation<P>(
+    provider: &P,
+    address: &Address,
+    storage: &U256,
+    block_number: Option<u64>
+) -> Result<Address, ProxyReadError>
+where
+    P: Provider
 {
-    let address = raddress_to_h160(address);
-    let contract = IDiamondLoupe::new(address, rpc);
-    let block: BlockId = BlockId::Number(block_number.map(|b| b.into()).unwrap_or(BlockNumber::Latest));
-    let facets = contract.facets().block(block).await.map_err(|e| ProxyReadError::RPCError(e.to_string()))?;
-    let facets_hashmap: HashMap<Address, u32> = facets.iter().map(|v| {
-	v.1.iter().map(|v1| (h160_to_b160(&v.0), as_u32_le(v1)))
-    }).flatten().collect();
+    let value = if let Some(block) = block_number {
+        provider.get_storage_at(*address, *storage)
+            .block_id(BlockId::number(block))
+            .await
+    } else {
+        provider.get_storage_at(*address, *storage).await
+    }.map_err(|e| ProxyReadError::RPCError(e.to_string()))?;
+
+    debug!("stored value:: {:?}", value);
+    
+    if (value & *ADDR_MASK_U256) == value {
+        Ok(Address::from_word(B256::from(value)))
+    } else {
+        Err(ProxyReadError::StorageNotAddress)
+    }
+}
+
+pub async fn read_facet_list_from_function<P>(
+    provider: P,
+    address: &Address,
+    block_number: Option<u64>
+) -> Result<ProxyImplementation, ProxyReadError>
+where
+    P: Provider + Clone
+{
+    let contract = IDiamondLoupe::new(*address, provider);
+    
+    let call = contract.facets();
+    let facets_result = if let Some(block) = block_number {
+        call.block(BlockId::number(block)).call().await
+    } else {
+        call.call().await
+    }.map_err(|e| ProxyReadError::RPCError(e.to_string()))?;
+    
+    let facets_hashmap: HashMap<Address, u32> = facets_result
+        .iter()
+        .flat_map(|facet| {
+            facet.functionSelectors.iter().map(move |selector| {
+                (facet.facetAddress, as_u32_le(&selector.0))
+            })
+        })
+        .collect();
+    
     Ok(ProxyImplementation::Facets(facets_hashmap))
 }
 
-pub async fn read_diamond_implementation<M>(_rpc: &M, _address: &Address, _diamond_base: &U256, _block_number: Option<u64>) -> Result<ProxyImplementation, ProxyReadError>
-    where M: Middleware
+pub async fn read_diamond_implementation<P>(
+    _provider: &P,
+    _address: &Address,
+    _diamond_base: &U256,
+    _block_number: Option<u64>
+) -> Result<ProxyImplementation, ProxyReadError>
+where
+    P: Provider
 {
     // TODO: implement properly
-    return Ok(ProxyImplementation::Multiple(Vec::new()))
+    Ok(ProxyImplementation::Multiple(Vec::new()))
     // Scan storage to find the first array (should have its size)
-
-
     // Go to the base of the array and get the structs
-
-
     // For each struct read the arrays of function signatures
 }
 
-#[async_recursion]
-pub async fn get_proxy_implementation<M>(rpc: Arc<M>, address: &Address, proxy_dispatch: &ProxyDispatch, block_number: Option<u64>) -> Result<ProxyImplementation, ProxyReadError>
-    where M: Middleware + 'static
+pub async fn get_proxy_implementation<P>(
+    provider: P,
+    address: &Address,
+    proxy_dispatch: &ProxyDispatch,
+    block_number: Option<u64>
+) -> Result<ProxyImplementation, ProxyReadError>
+where
+    P: Provider + Clone + 'static
 {
     match proxy_dispatch {
         ProxyDispatch::Unknown => Err(ProxyReadError::UnknownProxy),
-        ProxyDispatch::Storage(slot) => Ok(ProxyImplementation::Single(read_single_storage_implementation(&rpc, address, slot, block_number).await?)),
+        ProxyDispatch::Storage(slot) => {
+            Ok(ProxyImplementation::Single(
+                read_single_storage_implementation(&provider, address, slot, block_number).await?
+            ))
+        },
         ProxyDispatch::MultipleStorage(slots) => {
-	    let addrs: Result<Vec<Address>, ProxyReadError> = join_all(slots.iter().map(|s| async { read_single_storage_implementation(&rpc, address, s, block_number).await })).await.into_iter().collect();
-	    Ok(ProxyImplementation::Multiple(addrs?))
-	},
-        ProxyDispatch::Static(address) => Ok(ProxyImplementation::Single(address.clone())),
-        ProxyDispatch::Facet_EIP_2535 => { Ok(read_facet_list_from_function(rpc, address, block_number).await?) },
-        ProxyDispatch::FacetStorageSlot => Ok(read_diamond_implementation(&rpc, address, &DIAMOND_STANDARD_STORAGE_SLOT, block_number).await?),
+            let futures = slots.iter().map(|s| {
+                let provider = provider.clone();
+                async move {
+                    read_single_storage_implementation(&provider, address, s, block_number).await
+                }
+            });
+            let addrs: Result<Vec<Address>, ProxyReadError> = join_all(futures).await.into_iter().collect();
+            Ok(ProxyImplementation::Multiple(addrs?))
+        },
+        ProxyDispatch::Static(static_address) => Ok(ProxyImplementation::Single(*static_address)),
+        ProxyDispatch::Facet_EIP_2535 => {
+            Ok(read_facet_list_from_function(provider, address, block_number).await?)
+        },
+        ProxyDispatch::FacetStorageSlot => {
+            Ok(read_diamond_implementation(&provider, address, &DIAMOND_STANDARD_STORAGE_SLOT, block_number).await?)
+        },
         ProxyDispatch::External(_, _) => Err(ProxyReadError::ExternalProxy)
-        // ProxyDispatch::External(address, dispatch) => Ok(get_proxy_implementation(rpc, address, dispatch).await?),
     }
 }
