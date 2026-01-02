@@ -153,6 +153,15 @@ where
         Dispatch::DiamondStorage => {
             Ok(read_diamond_implementation(&provider, address, &DIAMOND_STANDARD_STORAGE_SLOT, block_number).await?)
         },
-        Dispatch::External(_, _) => Err(ProxyReadError::ExternalProxy)
+        Dispatch::External(_, _) => Err(ProxyReadError::ExternalProxy),
+        Dispatch::Static6551 { implementation, .. } => {
+            Ok(ProxyImplementation::Single(*implementation))
+        },
+        Dispatch::SelfAddressSlot => {
+            let slot = U256::from_be_bytes(address.into_word().0);
+            Ok(ProxyImplementation::Single(
+                read_single_storage_implementation(&provider, address, &slot, block_number).await?
+            ))
+        },
     }
 }

@@ -1,5 +1,12 @@
 
-use crate::consts::{EIP_1967_DEFAULT_STORAGE, DIAMOND_STANDARD_STORAGE_SLOT_LESSBYTES, FUN_TO_PROXY};
+use crate::consts::{
+    EIP_1967_DEFAULT_STORAGE, DIAMOND_STANDARD_STORAGE_SLOT_LESSBYTES, FUN_TO_PROXY,
+    GNOSIS_SAFE_MASTERCOPY_SELECTOR, GNOSIS_SAFE_STORAGE_SLOT, COMPOUND_UNITROLLER_STORAGE_SLOT,
+    ZERO_AGE_FIRST, ZERO_AGE_SECOND, SOLADY_PUSH0_FIRST, SOLADY_PUSH0_SECOND,
+    VYPER_BETA_FIRST, VYPER_BETA_SECOND, SEQUENCE_WALLET_BYTECODE,
+    ZERO_X_SPLITS_FIRST, ZERO_X_SPLITS_SECOND, CWIA_FIRST, CWIA_SECOND,
+    EIP_6551_SIZE, EIP_1167_SIZE,
+};
 // use hardfork::Hardfork;
 use crate::proxy_inspector::{ProxyInspector, ProxyDetectDB, InspectorData};
 use once_cell::sync::Lazy;
@@ -100,6 +107,157 @@ impl ProxyDetector for  MinimalProxy {
 	} else {
 	    Self::is_eip_3448(code).map(|address| (ProxyType::Eip3448, Dispatch::Static(address)))
 	}
+    }
+}
+
+pub struct ExtendedStaticProxy {}
+
+impl ExtendedStaticProxy {
+    fn is_eip_6551(code: &[u8]) -> Option<(Address, U256, Address, U256)> {
+        if code.len() != EIP_6551_SIZE {
+            return None;
+        }
+
+        const EIP_1167_FIRST: &[u8] = &hex_literal::hex!("363d3d373d3d3d363d73");
+        const EIP_1167_SECOND: &[u8] = &hex_literal::hex!("5af43d82803e903d91602b57fd5bf3");
+        
+        if code.len() < EIP_1167_SIZE {
+            return None;
+        }
+        
+        let second_start = EIP_1167_FIRST.len() + 20;
+        if &code[0..EIP_1167_FIRST.len()] != EIP_1167_FIRST {
+            return None;
+        }
+        if &code[second_start..second_start + EIP_1167_SECOND.len()] != EIP_1167_SECOND {
+            return None;
+        }
+        
+        let impl_addr = Address::from_slice(&code[EIP_1167_FIRST.len()..second_start]);
+        
+        let data_section = &code[EIP_1167_SIZE..];
+        if data_section.len() < 128 {
+            return None;
+        }
+        
+        let chain_id = U256::from_be_slice(&data_section[32..64]);
+        let token_contract = Address::from_slice(&data_section[76..96]);
+        let token_id = U256::from_be_slice(&data_section[96..128]);
+        
+        Some((impl_addr, chain_id, token_contract, token_id))
+    }
+    
+    fn is_zero_age(code: &[u8]) -> Option<Address> {
+        extract_minimal_contract::<20>(code, 44, ZERO_AGE_FIRST, ZERO_AGE_SECOND)
+    }
+    
+    fn is_solady_push0(code: &[u8]) -> Option<Address> {
+        extract_minimal_contract::<20>(code, 44, SOLADY_PUSH0_FIRST, SOLADY_PUSH0_SECOND)
+    }
+    
+    fn is_vyper_beta(code: &[u8]) -> Option<Address> {
+        extract_minimal_contract::<20>(code, 46, VYPER_BETA_FIRST, VYPER_BETA_SECOND)
+    }
+    
+    fn is_sequence_wallet(code: &[u8]) -> bool {
+        code == SEQUENCE_WALLET_BYTECODE
+    }
+    
+    fn is_zero_x_splits(code: &[u8]) -> Option<Address> {
+        let first_len = ZERO_X_SPLITS_FIRST.len();
+        let addr_end = first_len + 20;
+        let min_size = addr_end + ZERO_X_SPLITS_SECOND.len();
+        
+        if code.len() < min_size {
+            return None;
+        }
+        
+        if &code[0..first_len] != ZERO_X_SPLITS_FIRST {
+            return None;
+        }
+        
+        if &code[addr_end..addr_end + ZERO_X_SPLITS_SECOND.len()] != ZERO_X_SPLITS_SECOND {
+            return None;
+        }
+        
+        Some(Address::from_slice(&code[first_len..addr_end]))
+    }
+    
+    fn is_cwia(code: &[u8]) -> Option<Address> {
+        if code.len() < 60 {
+            return None;
+        }
+        
+        if &code[0..CWIA_FIRST.len()] != CWIA_FIRST {
+            return None;
+        }
+        
+        let addr_start = CWIA_FIRST.len() + 4 + 8;
+        if code.len() < addr_start + 20 + CWIA_SECOND.len() {
+            return None;
+        }
+        
+        let addr_end = addr_start + 20;
+        
+        find_bytes(code, CWIA_SECOND)?;
+        
+        Some(Address::from_slice(&code[addr_start..addr_end]))
+    }
+    
+    fn is_gnosis_safe(code: &[u8]) -> bool {
+        find_bytes(code, &GNOSIS_SAFE_MASTERCOPY_SELECTOR).is_some()
+    }
+    
+    fn is_compound_unitroller(code: &[u8]) -> bool {
+        const COMPTROLLER_IMPL_SELECTOR: [u8; 4] = hex_literal::hex!("bb82aa5e");
+        find_bytes(code, &COMPTROLLER_IMPL_SELECTOR).is_some()
+    }
+}
+
+impl ProxyDetector for ExtendedStaticProxy {
+    fn try_match(code: &[u8]) -> Option<(ProxyType, Dispatch)> {
+        if let Some((impl_addr, chain_id, token_contract, token_id)) = Self::is_eip_6551(code) {
+            return Some((ProxyType::Eip6551, Dispatch::Static6551 {
+                implementation: impl_addr,
+                chain_id,
+                token_contract,
+                token_id,
+            }));
+        }
+        
+        if let Some(addr) = Self::is_zero_age(code) {
+            return Some((ProxyType::ZeroAgeMinimal, Dispatch::Static(addr)));
+        }
+        
+        if let Some(addr) = Self::is_solady_push0(code) {
+            return Some((ProxyType::SoladyPush0, Dispatch::Static(addr)));
+        }
+        
+        if let Some(addr) = Self::is_vyper_beta(code) {
+            return Some((ProxyType::VyperBeta, Dispatch::Static(addr)));
+        }
+        
+        if Self::is_sequence_wallet(code) {
+            return Some((ProxyType::SequenceWallet, Dispatch::SelfAddressSlot));
+        }
+        
+        if let Some(addr) = Self::is_zero_x_splits(code) {
+            return Some((ProxyType::ZeroXSplitsClones, Dispatch::Static(addr)));
+        }
+        
+        if let Some(addr) = Self::is_cwia(code) {
+            return Some((ProxyType::ClonesWithImmutableArgs, Dispatch::Static(addr)));
+        }
+        
+        if Self::is_gnosis_safe(code) {
+            return Some((ProxyType::GnosisSafe, Dispatch::Storage(*GNOSIS_SAFE_STORAGE_SLOT)));
+        }
+        
+        if Self::is_compound_unitroller(code) {
+            return Some((ProxyType::CompoundUnitroller, Dispatch::Storage(*COMPOUND_UNITROLLER_STORAGE_SLOT)));
+        }
+        
+        None
     }
 }
 
@@ -231,7 +389,9 @@ impl ProxyDetector for StorageSlotProxy {
 }
 
 pub fn get_proxy_type(code: &[u8]) -> Option<(ProxyType, Dispatch)> {
-    MinimalProxy::try_match(code).or_else(|| StorageSlotProxy::try_match(code))
+    ExtendedStaticProxy::try_match(code)
+        .or_else(|| MinimalProxy::try_match(code))
+        .or_else(|| StorageSlotProxy::try_match(code))
 }
 
 #[cfg(test)]
