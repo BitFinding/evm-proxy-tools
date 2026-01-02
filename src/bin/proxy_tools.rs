@@ -30,7 +30,7 @@ async fn main() {
 
     let args = Args::parse();
 
-    println!("{:?}", args);
+    println!("{args:?}");
 
     let provider = ProviderBuilder::new()
         .connect_http(args.url.parse().expect("failed to parse RPC URL"));
@@ -38,7 +38,7 @@ async fn main() {
     let mut address = args.address;
 
     loop {
-        println!("Analysing address {:?}", address);
+        println!("Analysing address {address:?}");
         
         let code = if let Some(block) = args.block {
             provider.get_code_at(address).block_id(BlockId::number(block)).await
@@ -53,7 +53,7 @@ async fn main() {
 
         let proxy_type = evm_proxy_tools::get_proxy_type(&code);
 
-        println!("proxy type: {:?}", proxy_type);
+        println!("proxy type: {proxy_type:?}");
         if let Some((_proxy_type, proxy_dispatch)) = proxy_type {
             if let ProxyDispatch::External(ext_address, _call) = proxy_dispatch {
                 println!("going into proxy child");
@@ -66,7 +66,7 @@ async fn main() {
                     &proxy_dispatch,
                     args.block
                 ).await.expect("failed to get proxy implementation");
-                println!("proxy impl: {:?}", proxy_impl);
+                println!("proxy impl: {proxy_impl:?}");
             }
         } else {
             println!("Couldn't identify a proxy in that address");

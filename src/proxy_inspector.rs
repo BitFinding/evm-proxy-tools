@@ -69,31 +69,14 @@ impl ProxyInspector {
 
 }
 
-// enum TaintDetail {
-//     // Variables embedded in the code, minimal proxies and others
-//     CodeData(u16, u16),
-//     CallData(u16, u16),
-//     Storage(Rc<TaintInfo>),
-//     Static
-// }
-
-// struct TaintInfo {
-//     taint_detail: TaintDetail,
-//     clean_taint: bool
-// }
-
-// struct Tainter {
-//     memory: Vec<(U256, TaintInfo)>,
-//     stack: Vec<(U256, TaintInfo)>
-// }
-
 static ADDR_MASK: Lazy<U256> = Lazy::new(|| U256::from_be_bytes(hex_literal::hex!("000000000000000000000000ffffffffffffffffffffffffffffffffffffffff")));
 static ADDR_XOR: Lazy<U256> = Lazy::new(|| U256::from_be_bytes(hex_literal::hex!("000000000000000000000000c1d50e94dbe44a2e3595f7d5311d788076ac6188")));
 
 #[derive(Clone, Debug, Error)]
+#[allow(dead_code)] // Variants are required for Database trait error type
 pub enum ProxyDetectError {
-    #[error("Custom error: {0}")]
-    Custom(String),
+    #[error("EVM execution error")]
+    Execution,
 }
 
 impl DBErrorMarker for ProxyDetectError {}
@@ -195,18 +178,15 @@ where
             trace!("STACK: {:x}", mem);
         }
         trace!("--");
-        match op {
-            opcode::SLOAD => {
-                // Try to get stack value at position 0
-                let stack_data = interp.stack.data();
-                if !stack_data.is_empty() {
-                    let memory = stack_data[stack_data.len() - 1];
+        if op == opcode::SLOAD {
+            // Try to get stack value at position 0
+            let stack_data = interp.stack.data();
+            if !stack_data.is_empty() {
+                let memory = stack_data[stack_data.len() - 1];
 		    self.storage_access.push(memory);
-                    trace!("SLOAD detected {}", memory);
-                }
-            },
-            _ => ()
-        };
+                trace!("SLOAD detected {}", memory);
+            }
+        }
     }
 
     #[inline(always)]
