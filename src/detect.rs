@@ -8,10 +8,10 @@ use alloy_primitives::{Address, Bytes, U256};
 use tracing::debug;
 use twoway::find_bytes;
 
-use crate::{ProxyType, ProxyDispatch};
+use crate::{ProxyType, Dispatch};
 
 pub trait ProxyDetector {
-    fn try_match(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)>;
+    fn try_match(code: &[u8]) -> Option<(ProxyType, Dispatch)>;
 }
 
 pub struct MinimalProxy {}
@@ -27,7 +27,7 @@ pub fn extract_minimal_contract<const ADDR_SIZE: usize>(code: &[u8], min_size: u
 	    Some(Address::from_slice(&addr_vec))
 	    // Some
 	} else {
-	    Some(Address::from_slice(&addr))
+	    Some(Address::from_slice(addr))
 	}
     } else {
 	None
@@ -92,15 +92,13 @@ impl MinimalProxy {
 }
 
 impl ProxyDetector for  MinimalProxy {
-    fn try_match(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)> {
+    fn try_match(code: &[u8]) -> Option<(ProxyType, Dispatch)> {
 	if let Some(address) = Self::is_eip_1667(code) {
-	    Some((ProxyType::EIP_1167, ProxyDispatch::Static(address)))
+	    Some((ProxyType::Eip1167, Dispatch::Static(address)))
 	} else if let Some(address) = Self::is_eip_7511(code) {
-	    Some((ProxyType::EIP_7511, ProxyDispatch::Static(address)))
-	} else if let Some(address) = Self::is_eip_3448(code) {
-	    Some((ProxyType::EIP_3448, ProxyDispatch::Static(address)))
+	    Some((ProxyType::Eip7511, Dispatch::Static(address)))
 	} else {
-	    None
+	    Self::is_eip_3448(code).map(|address| (ProxyType::Eip3448, Dispatch::Static(address)))
 	}
     }
 }
@@ -165,9 +163,9 @@ impl StorageCallTaint {
 	if let Some(proxy) = EIP_1967_DEFAULT_STORAGE.get(storage) {
 	    *proxy
 	} else if *storage > U256::from(0x100) {
-	    ProxyType::EIP_1967_CUSTOM
+	    ProxyType::Eip1967Custom
 	} else {
-	    ProxyType::EIP_897
+	    ProxyType::Eip897
 	}
     }
 
@@ -176,54 +174,38 @@ impl StorageCallTaint {
 	data.iter().all(|e| e == first)
     }
 
-    fn detect_proxy_from_data(&self, data: &[InspectorData]) -> Option<(ProxyType, ProxyDispatch)> {
-	// First check if all the calldata were equals
-	// println!("data: {:#?}", data);
+    fn detect_proxy_from_data(&self, data: &[InspectorData]) -> Option<(ProxyType, Dispatch)> {
 	debug!("inspector_data: {:#?}", data);
 
 	let consistent_execution = Self::check_all_are_equal(data);
-	// println!("consistent: {}", consistent_execution);
 	if consistent_execution {
 	    if data[0].delegatecall_unknown.len() == 1 {
 		let static_address = data[0].delegatecall_unknown[0];
-		Some((ProxyType::StaticAddress, ProxyDispatch::Static(static_address)))
+		Some((ProxyType::StaticAddress, Dispatch::Static(static_address)))
 	    }  else if data[0].delegatecall_storage.len() == 1{
 		let storage_slot = data[0].delegatecall_storage[0];
-		Some((Self::identify_proxy_by_storage(&storage_slot), ProxyDispatch::Storage(storage_slot)))
+		Some((Self::identify_proxy_by_storage(&storage_slot), Dispatch::Storage(storage_slot)))
 	    } else if data[0].external_calls.len() ==1 {
 		let address = data[0].external_calls[0].0;
 		let fun = data[0].external_calls[0].1;
 		if FUN_TO_PROXY.contains_key(&fun) {
-		    // let proxy = FUN_TO_PROXY.get(&fun);
-		    Some((ProxyType::External, ProxyDispatch::External(address, fun)))
+		    Some((ProxyType::External, Dispatch::External(address, fun)))
 		} else {
 		    None
 		}
 	    } else {
 		None
 	    }
+	} else if find_bytes(&self.code, &hex_literal::hex!("637a0ed627")).is_some() {
+	    Some((ProxyType::Eip2535, Dispatch::DiamondFacets))
+	} else if find_bytes(&self.code, &DIAMOND_STANDARD_STORAGE_SLOT_LESSBYTES).is_some() {
+	    Some((ProxyType::Eip2535, Dispatch::DiamondStorage))
 	} else {
-	    // if data[0].delegatecall_storage.len() > 0 {
-		// println!("code: {}", self.code);
-		if find_bytes(&self.code, &hex_literal::hex!("637a0ed627")).is_some() {
-		    Some((ProxyType::EIP_2535, ProxyDispatch::Facet_EIP_2535))
-		} else {
-		    // if data.iter().all(|d| d.storage_access.contains(&DIAMOND_STANDARD_STORAGE_SLOT)) {
-		    if find_bytes(&self.code, &DIAMOND_STANDARD_STORAGE_SLOT_LESSBYTES).is_some() {
-			Some((ProxyType::EIP_2535, ProxyDispatch::FacetStorageSlot))
-		    } else {
-			Some((ProxyType::DiamondOther, ProxyDispatch::Unknown))
-		    }
-		}
-	    // } else if data[0].delegatecall_unknown.len() > 0 {
-	    // 	Some((ProxyType::EIP_2535, ProxyDispatch::Unknown))
-	    // } else {
-	    // 	None
-	    // }
+	    Some((ProxyType::DiamondOther, Dispatch::Unknown))
 	}
     }
 
-    fn get_proxy(&self) -> Option<(ProxyType, ProxyDispatch)> {
+    fn get_proxy(&self) -> Option<(ProxyType, Dispatch)> {
 	// Run with 3 different call data to check if we get different DelegateCall
 	let mut runs = Vec::new();
 
@@ -237,29 +219,19 @@ impl StorageCallTaint {
 	    runs.push(ret);
 	}
 	self.detect_proxy_from_data(&runs)
-
-	// ProxyType::Unknown
     }
 }
 
 
 impl ProxyDetector for StorageSlotProxy {
-    fn try_match(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)> {
-	// let storage_inspector = ();
-	// run_code_with_inspector
+    fn try_match(code: &[u8]) -> Option<(ProxyType, Dispatch)> {
         let tainter = StorageCallTaint::new(code);
 	tainter.get_proxy()
     }
 }
 
-pub fn get_proxy_type(code: &[u8]) -> Option<(ProxyType, ProxyDispatch)> {
-    if let Some(proxy_type) = MinimalProxy::try_match(code) {
-	Some(proxy_type)
-    } else if let Some(proxy_type) = StorageSlotProxy::try_match(code) {
-	Some(proxy_type)
-    } else {
-	None
-    }
+pub fn get_proxy_type(code: &[u8]) -> Option<(ProxyType, Dispatch)> {
+    MinimalProxy::try_match(code).or_else(|| StorageSlotProxy::try_match(code))
 }
 
 #[cfg(test)]

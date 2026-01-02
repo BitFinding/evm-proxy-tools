@@ -8,7 +8,7 @@ use futures::future::join_all;
 use thiserror::Error;
 use tracing::debug;
 
-use crate::{types::ProxyDispatch, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_U256}, utils::as_u32_le};
+use crate::{Dispatch, consts::{DIAMOND_STANDARD_STORAGE_SLOT, ADDR_MASK_U256}, utils::as_u32_le};
 
 #[derive(Clone, Debug, Error)]
 pub enum ProxyReadError {
@@ -123,20 +123,20 @@ where
 pub async fn get_proxy_implementation<P>(
     provider: P,
     address: &Address,
-    proxy_dispatch: &ProxyDispatch,
+    dispatch: &Dispatch,
     block_number: Option<u64>
 ) -> Result<ProxyImplementation, ProxyReadError>
 where
     P: Provider + Clone + 'static
 {
-    match proxy_dispatch {
-        ProxyDispatch::Unknown => Err(ProxyReadError::UnknownProxy),
-        ProxyDispatch::Storage(slot) => {
+    match dispatch {
+        Dispatch::Unknown => Err(ProxyReadError::UnknownProxy),
+        Dispatch::Storage(slot) => {
             Ok(ProxyImplementation::Single(
                 read_single_storage_implementation(&provider, address, slot, block_number).await?
             ))
         },
-        ProxyDispatch::MultipleStorage(slots) => {
+        Dispatch::MultipleStorage(slots) => {
             let futures = slots.iter().map(|s| {
                 let provider = provider.clone();
                 async move {
@@ -146,13 +146,13 @@ where
             let addrs: Result<Vec<Address>, ProxyReadError> = join_all(futures).await.into_iter().collect();
             Ok(ProxyImplementation::Multiple(addrs?))
         },
-        ProxyDispatch::Static(static_address) => Ok(ProxyImplementation::Single(*static_address)),
-        ProxyDispatch::Facet_EIP_2535 => {
+        Dispatch::Static(static_address) => Ok(ProxyImplementation::Single(*static_address)),
+        Dispatch::DiamondFacets => {
             Ok(read_facet_list_from_function(provider, address, block_number).await?)
         },
-        ProxyDispatch::FacetStorageSlot => {
+        Dispatch::DiamondStorage => {
             Ok(read_diamond_implementation(&provider, address, &DIAMOND_STANDARD_STORAGE_SLOT, block_number).await?)
         },
-        ProxyDispatch::External(_, _) => Err(ProxyReadError::ExternalProxy)
+        Dispatch::External(_, _) => Err(ProxyReadError::ExternalProxy)
     }
 }

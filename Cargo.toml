@@ -1,10 +1,15 @@
 [package]
 name = "evm-proxy-tools"
-author = "snf"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version = "1.75"
+authors = ["snf"]
+description = "Detect and read EVM proxy contract implementations (EIP-1167, EIP-1967, EIP-2535, and more)"
+license = "MIT"
+repository = "https://github.com/snf/evm-proxy-tools"
+keywords = ["ethereum", "evm", "proxy", "smart-contracts", "solidity"]
+categories = ["cryptography::cryptocurrencies", "development-tools"]
+readme = "README.md"
 
 [profile.maxperf]
 inherits = "release"
