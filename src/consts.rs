@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use ethers_core::types::H256;
 use once_cell::sync::Lazy;
 use alloy_primitives::U256;
 
 use crate::ProxyType;
 
-pub static ADDR_MASK_H256: Lazy<H256> = Lazy::new(|| {
-    H256::from(hex_literal::hex!("000000000000000000000000ffffffffffffffffffffffffffffffffffffffff"))
+pub static ADDR_MASK_U256: Lazy<U256> = Lazy::new(|| {
+    U256::from_be_bytes(hex_literal::hex!("000000000000000000000000ffffffffffffffffffffffffffffffffffffffff"))
 });
 
 pub static EIP_1967_DEFAULT_STORAGE: Lazy<HashMap<U256, ProxyType>> = Lazy::new(|| {

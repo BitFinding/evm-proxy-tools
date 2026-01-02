@@ -161,8 +161,7 @@ impl Database for ProxyDetectDB {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256,Self::Error>  {
-        use std::ops::{BitAnd, BitXor};
-        let magic_value = index.bitand(*ADDR_MASK).bitxor(*ADDR_XOR);
+        let magic_value = (index & *ADDR_MASK) ^ *ADDR_XOR;
 	let magic_address = Address::from_word(FixedBytes::from_slice(&magic_value.to_be_bytes::<32>()));
 	debug!("storage(): {:x} -> {:x} = {:x}", address, index, magic_value);
 
