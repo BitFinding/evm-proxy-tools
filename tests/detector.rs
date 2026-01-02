@@ -77,3 +77,88 @@ fn test_eip_1967() {
     // https://etherscan.io/address/0xdd28b7fd7780e9388582af20e5247e1dcbac8ae9#code
     assert_eq!(get_proxy_type(&hex_literal::hex!("60806040523661001357610011610017565b005b6100115b61004a7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc546001600160a01b031661007b565b565b90565b606061007483836040518060600160405280602781526020016102316027913961009f565b9392505050565b3660008037600080366000845af43d6000803e80801561009a573d6000f35b3d6000fd5b6060833b6101035760405162461bcd60e51b815260206004820152602660248201527f416464726573733a2064656c65676174652063616c6c20746f206e6f6e2d636f6044820152651b9d1c9858dd60d21b60648201526084015b60405180910390fd5b600080856001600160a01b03168560405161011e91906101b1565b600060405180830381855af49150503d8060008114610159576040519150601f19603f3d011682016040523d82523d6000602084013e61015e565b606091505b509150915061016e828286610178565b9695505050505050565b60608315610187575081610074565b8251156101975782518084602001fd5b8160405162461bcd60e51b81526004016100fa91906101cd565b600082516101c3818460208701610200565b9190910192915050565b60208152600082518060208401526101ec816040850160208701610200565b601f01601f19169190910160400192915050565b60005b8381101561021b578181015183820152602001610203565b8381111561022a576000848401525b5050505056fe416464726573733a206c6f772d6c6576656c2064656c65676174652063616c6c206661696c6564a2646970667358221220727e9c7322af70a33c460d6c97b3533591ca0a1b66f567d29a66e092f79e0a0d64736f6c63430008070033")), Some((ProxyType::Eip1967, Dispatch::Storage(U256::from_be_bytes(hex_literal::hex!("360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"))))));
 }
+
+#[test]
+fn test_zero_age_minimal() {
+    init();
+    let addr = Address::from(hex_literal::hex!("bebebebebebebebebebebebebebebebebebebebe"));
+    let code = hex_literal::hex!("3d3d3d3d363d3d37363d73bebebebebebebebebebebebebebebebebebebebe5af43d3d93803e602a57fd5bf3");
+    assert_eq!(get_proxy_type(&code), Some((ProxyType::ZeroAgeMinimal, Dispatch::Static(addr))));
+}
+
+#[test]
+fn test_solady_push0() {
+    init();
+    let addr = Address::from(hex_literal::hex!("bebebebebebebebebebebebebebebebebebebebe"));
+    let code = hex_literal::hex!("5f5f365f5f37365f73bebebebebebebebebebebebebebebebebebebebe5af43d5f5f3e6029573d5ffd5b3d5ff3");
+    assert_eq!(get_proxy_type(&code), Some((ProxyType::SoladyPush0, Dispatch::Static(addr))));
+}
+
+#[test]
+fn test_vyper_beta() {
+    init();
+    let addr = Address::from(hex_literal::hex!("bebebebebebebebebebebebebebebebebebebebe"));
+    let code = hex_literal::hex!("366000600037611000600036600073bebebebebebebebebebebebebebebebebebebebe5af41558576110006000f3");
+    assert_eq!(get_proxy_type(&code), Some((ProxyType::VyperBeta, Dispatch::Static(addr))));
+}
+
+#[test]
+fn test_sequence_wallet() {
+    init();
+    let code = hex_literal::hex!("363d3d373d3d3d363d30545af43d82803e903d91601857fd5bf3");
+    assert_eq!(get_proxy_type(&code), Some((ProxyType::SequenceWallet, Dispatch::SelfAddressSlot)));
+}
+
+#[test]
+fn test_zero_x_splits_clones() {
+    init();
+    let addr = Address::from(hex_literal::hex!("bebebebebebebebebebebebebebebebebebebebe"));
+    let code = hex_literal::hex!("36603057343d52307f830d2d700a97af574b186c80d40429385d24241565b08a7c559ba283a964d9b160203da23d3df35b3d3d3d3d363d3d37363d73bebebebebebebebebebebebebebebebebebebebe5af43d3d93803e605b57fd5bf3");
+    assert_eq!(get_proxy_type(&code), Some((ProxyType::ZeroXSplitsClones, Dispatch::Static(addr))));
+}
+
+#[test]
+fn test_eip_6551_token_bound_account() {
+    init();
+    let impl_addr = Address::from(hex_literal::hex!("2d25602551487c3f3354dd80d76d54383a243358"));
+    let code = hex_literal::hex!(
+        "363d3d373d3d3d363d732d25602551487c3f3354dd80d76d54383a2433585af43d82803e903d91602b57fd5bf3"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+        "000000000000000000000000a87ea7c8745980490bcdcff97fe7328535098cd1"
+        "0000000000000000000000000000000000000000000000000000000000000001"
+    );
+    
+    let result = get_proxy_type(&code);
+    assert!(result.is_some());
+    let (proxy_type, dispatch) = result.unwrap();
+    assert_eq!(proxy_type, ProxyType::Eip6551);
+    
+    match dispatch {
+        Dispatch::Static6551 { implementation, chain_id, token_contract, token_id } => {
+            assert_eq!(implementation, impl_addr);
+            assert_eq!(chain_id, U256::from(1));
+            assert_eq!(token_contract, Address::from(hex_literal::hex!("a87ea7c8745980490bcdcff97fe7328535098cd1")));
+            assert_eq!(token_id, U256::from(1));
+        },
+        _ => panic!("Expected Static6551 dispatch"),
+    }
+}
+
+#[test]
+fn test_gnosis_safe_proxy() {
+    init();
+    let code = hex_literal::hex!(
+        "608060405273ffffffffffffffffffffffffffffffffffffffff600054167fa619486e0000"
+        "0000000000000000000000000000000000000000000000000000600035141560505780"
+        "60005260206000f35b3660008037600080366000845af43d6000803e60008114606c57"
+        "3d6000f35b3d6000fdfea2646970667358221220d1429297349653a4918076d650332d"
+        "e1a1068c5f3e07c5c82360c277770b955264736f6c63430007060033"
+    );
+    
+    let result = get_proxy_type(&code);
+    assert!(result.is_some());
+    let (proxy_type, dispatch) = result.unwrap();
+    assert_eq!(proxy_type, ProxyType::GnosisSafe);
+    assert_eq!(dispatch, Dispatch::Storage(U256::ZERO));
+}

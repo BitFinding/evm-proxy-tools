@@ -48,6 +48,33 @@ pub enum ProxyType {
 
     /// Proxy that delegates to an external contract for resolution.
     External,
+
+    /// Gnosis Safe / Safe Proxy (implementation at storage slot 0).
+    GnosisSafe,
+
+    /// ERC-6551: Token Bound Account (EIP-1167 + appended NFT data).
+    Eip6551,
+
+    /// Compound Unitroller pattern (implementation at storage slot 2).
+    CompoundUnitroller,
+
+    /// 0age More-Minimal Proxy (44-byte variant of EIP-1167).
+    ZeroAgeMinimal,
+
+    /// Vyper Beta minimal proxy (pre-EIP-1167, Uniswap V1 style).
+    VyperBeta,
+
+    /// Solady PUSH0 minimal proxy (post-Shanghai optimization).
+    SoladyPush0,
+
+    /// Clones With Immutable Args (various implementations).
+    ClonesWithImmutableArgs,
+
+    /// Sequence Wallet proxy (uses self-address as storage key).
+    SequenceWallet,
+
+    /// 0xSplits clone proxy.
+    ZeroXSplitsClones,
 }
 
 /// Describes how to locate the implementation address for a proxy.
@@ -74,6 +101,17 @@ pub enum Dispatch {
 
     /// Implementation resolved via external contract call.
     External(Address, u32),
+
+    /// ERC-6551 Token Bound Account with embedded NFT data.
+    Static6551 {
+        implementation: Address,
+        chain_id: U256,
+        token_contract: Address,
+        token_id: U256,
+    },
+
+    /// Sequence Wallet: implementation stored at storage[address(proxy)].
+    SelfAddressSlot,
 }
 
 /// The result of detecting a proxy pattern in bytecode.
