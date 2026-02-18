@@ -35,7 +35,7 @@ thiserror = "1.0"
 twoway = "0.2"
 
 ## alloy
-alloy = { version = "1.2", features = ["provider-http", "contract", "rpc-types", "sol-types"] }
+alloy = { version = "1.2", default-features = false, features = ["std", "provider-http", "contract", "rpc-types", "sol-types", "reqwest-rustls-tls"] }
 alloy-primitives = { version = "1.5.2", features = ["serde"] }
 
 ## revm
@@ -68,4 +68,3 @@ croaring = { version = "1.0", features = ["buildtime_bindgen"]}
 # default = ["jemalloc"]
 # jemalloc = ["dep:jemallocator", "dep:jemalloc-ctl"]
 # jemalloc-prof = ["jemalloc", "jemallocator?/profiling"]
-
