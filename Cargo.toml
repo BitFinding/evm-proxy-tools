@@ -2,7 +2,7 @@
 name = "evm-proxy-tools"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.94.1"
 authors = ["snf"]
 description = "Detect and read EVM proxy contract implementations (EIP-1167, EIP-1967, EIP-2535, and more)"
 license = "MIT"
@@ -35,8 +35,8 @@ thiserror = "1.0"
 twoway = "0.2"
 
 ## alloy
-alloy = { version = "1.2", default-features = false, features = ["std", "provider-http", "contract", "rpc-types", "sol-types", "reqwest-rustls-tls"] }
-alloy-primitives = { version = "1.5.2", features = ["serde"] }
+alloy = { version = "2.5.0", default-features = false, features = ["std", "provider-http", "contract", "rpc-types", "sol-types", "reqwest-rustls-tls"] }
+alloy-primitives = { version = "1.7.3", features = ["serde"] }
 
 ## revm
 revm = { version = "33.1.0", default-features = false, features = ["optional_block_gas_limit", "std", "secp256k1"] }
@@ -68,3 +68,7 @@ croaring = { version = "1.0", features = ["buildtime_bindgen"]}
 # default = ["jemalloc"]
 # jemalloc = ["dep:jemallocator", "dep:jemalloc-ctl"]
 # jemalloc-prof = ["jemalloc", "jemallocator?/profiling"]
+
+[dev-dependencies]
+serde_json = "1"
+tower = { version = "0.5", features = ["util"] }
